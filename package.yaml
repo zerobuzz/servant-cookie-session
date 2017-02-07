@@ -1,0 +1,62 @@
+name:                servant-cookie-session
+version:             0.0.0.0
+synopsis:            'Cookie based session handling for Servant'
+description:         Please see README.md
+homepage:            https://github.com/fisx/servant-cookie-session
+license:             AGPL
+license-file:        LICENSE
+author:
+  - Andor Penzes <andor.penzes@gmail.com>
+  - Matthias Fischmann <mf@zerobuzz.net>
+  - Nicolas Pouillard <np@nicolaspouillard.fr>
+  - Nicole Rauch <info@nicole-rauch.de>
+maintainer:          mf@zerobuzz.net
+copyright:           2017-2022 zerobuzz.net
+category:            Web
+
+ghc-options: -j -Wall -Werror
+
+dependencies:
+  - base
+  - lens
+  - mtl
+  - cryptonite
+  - aeson
+  - string-conversions
+  - servant
+  - sandi
+  - text
+  - resourcet
+  - wai-extra
+  - servant-server
+  - memory
+  - bytestring
+  - transformers
+  - wai
+  - cookie
+  - vault
+  - wai-session
+
+library:
+  exposed-modules:
+    - Thentos.CookieSession
+    - Thentos.CookieSession.CSRF
+    - Thentos.CookieSession.Types
+    - Control.Monad.Except.Missing
+    - Servant.Missing
+  source-dirs:
+    - src
+
+tests:
+  spec:
+    main: Spec.hs
+    source-dirs:
+      - test
+      - src
+    ghc-options: -threaded -rtsopts -with-rtsopts=-N
+    dependencies:
+      - hspec
+      - hspec-core
+      - hspec-discover
+      - hspec-wai
+      - http-types

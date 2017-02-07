@@ -1,0 +1,7 @@
+/dist
+/docs
+/log/*.log
+/site_key.txt
+/TAGS
+.stack-work
+servant-cookie-session.cabal
