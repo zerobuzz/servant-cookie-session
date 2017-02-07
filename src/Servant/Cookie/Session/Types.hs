@@ -26,7 +26,7 @@ newtype SessionToken = SessionToken { fromSessionToken :: ST }
 class GetSessionToken a where
     getSessionToken :: Getter a (Maybe SessionToken)
 
-type SessionTokenMonad s m = (MonadState s m, GetSessionToken s)
+type MonadSessionToken s m = (MonadState s m, GetSessionToken s)
 
 -- | Return a base64 encoded random string of length 24 (18 bytes of entropy).
 -- We use @_@ instead of @/@ as last letter of the base64 alphabet since it allows using names
