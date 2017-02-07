@@ -43,7 +43,7 @@ import qualified Data.ByteString as SBS
 import qualified Data.Text as ST
 
 import Servant.Missing (MonadError500, throwError500)
-import Servant.Cookie.Session.Types (SessionToken(fromSessionToken), MonadUseThentosSessionToken, getSessionToken)
+import Servant.Cookie.Session.Types (SessionToken(fromSessionToken), SessionTokenMonad, getSessionToken)
 
 -- | This token is used to prevent CSRF (Cross Site Request Forgery).
 -- This token is part of 'FrontendSessionData' since it is required by the views which
@@ -113,7 +113,7 @@ validFormatCsrfToken (CsrfToken st)
     | otherwise                                         = False
 
 -- | Computes a valid CSRF token given a nonce.
-makeCsrfToken :: (MonadError500 err m, MonadViewCsrfSecret e m, MonadUseThentosSessionToken s m) =>
+makeCsrfToken :: (MonadError500 err m, MonadViewCsrfSecret e m, SessionTokenMonad s m) =>
                  CsrfNonce -> m CsrfToken
 makeCsrfToken (CsrfNonce rnd) = do
     maySessionToken <- use getSessionToken
@@ -131,7 +131,7 @@ csrfNonceFromCsrfToken = CsrfNonce . SBS.take 64 . cs . fromCsrfToken
 
 -- | Verify the authenticity of a given 'CsrfToken'.  This token should come from the form data of
 -- the POST request, NOT from 'FrontendSessionData'.
-checkCsrfToken :: (MonadError500 err m, MonadViewCsrfSecret e m, MonadUseThentosSessionToken s m) => CsrfToken -> m ()
+checkCsrfToken :: (MonadError500 err m, MonadViewCsrfSecret e m, SessionTokenMonad s m) => CsrfToken -> m ()
 checkCsrfToken csrfToken
     | not (validFormatCsrfToken csrfToken) =
         throwError500 $ "Ill-formatted CSRF Token " <> show csrfToken
@@ -153,7 +153,7 @@ genCsrfNonce = CsrfNonce . (convertToBase Base16 :: SBS -> SBS) <$> getRandomByt
 -- | See 'CsrfToken'.
 -- This function assigns a newly generated 'CsrfToken' to the 'FrontendSessionData'.
 refreshCsrfToken :: (MonadError500 err m, MonadHasSessionCsrfToken s m,
-                     MonadRandom m, MonadViewCsrfSecret e m, MonadUseThentosSessionToken s m) => m ()
+                     MonadRandom m, MonadViewCsrfSecret e m, SessionTokenMonad s m) => m ()
 refreshCsrfToken = do
     csrfToken <- makeCsrfToken =<< genCsrfNonce
     sessionCsrfToken .= Just csrfToken

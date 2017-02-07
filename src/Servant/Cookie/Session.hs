@@ -48,7 +48,7 @@ import qualified Network.Wai.Session.Map as SessionMap
 
 import Servant.Missing (MonadError500, throwError500)
 import Servant.Cookie.Session.CSRF
-import Servant.Cookie.Session.Types (SessionToken, MonadUseThentosSessionToken, getSessionToken)
+import Servant.Cookie.Session.Types (SessionToken, SessionTokenMonad, getSessionToken)
 
 -- * servant integration
 
@@ -108,7 +108,7 @@ serveFAction :: forall api m s e v.
         ( HasServer api '[]
         , Enter (ServerT api m) (m :~> ExceptT ServantErr IO) (Server api)
         , MonadRandom m, MonadError500 e m, MonadHasSessionCsrfToken s m
-        , MonadViewCsrfSecret v m, MonadUseThentosSessionToken s m
+        , MonadViewCsrfSecret v m, SessionTokenMonad s m
         )
      => Proxy api
      -> Proxy s
@@ -131,7 +131,7 @@ serveFAction _ sProxy setCookie extendClearanceOnSessionToken ioNat nat fServer 
 
 enterFAction
     :: ( MonadRandom m, MonadError500 e m, MonadHasSessionCsrfToken s m
-       , MonadViewCsrfSecret v m, MonadUseThentosSessionToken s m)
+       , MonadViewCsrfSecret v m, SessionTokenMonad s m)
     => FSessionKey s
     -> FSessionMap s
     -> ExtendClearanceOnSessionToken m
