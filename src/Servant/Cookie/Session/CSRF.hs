@@ -43,7 +43,7 @@ import qualified Data.ByteString as SBS
 import qualified Data.Text as ST
 
 import Servant.Missing (MonadError500, throwError500)
-import Servant.Cookie.Session.Types (ThentosSessionToken(fromThentosSessionToken), MonadUseThentosSessionToken, getThentosSessionToken)
+import Servant.Cookie.Session.Types (SessionToken(fromSessionToken), MonadUseThentosSessionToken, getSessionToken)
 
 -- | This token is used to prevent CSRF (Cross Site Request Forgery).
 -- This token is part of 'FrontendSessionData' since it is required by the views which
@@ -51,10 +51,10 @@ import Servant.Cookie.Session.Types (ThentosSessionToken(fromThentosSessionToken
 -- However, this token is cleared before being serialized as a cookie.
 -- Indeed we have no need yet to have it on the client side nor to make it persistent.
 -- When processing requests, this token is freshly generated from the 'CsrfSecret' and the
--- 'ThentosSessionToken'. This token is only used by requests that yield an HTML form.
+-- 'SessionToken'. This token is only used by requests that yield an HTML form.
 -- Upon POST requests on such forms, the handlers will check the validity of the CSRF token.
 -- Verification of this token can be done solely from the 'CsrfSecret' and
--- the 'ThentosSessionToken'.
+-- the 'SessionToken'.
 --
 -- This all means that if the attacker could get access to one of these tokens it would be enough to
 -- validate any form.  Changing the token on every request even inside the session helps to counter
@@ -116,14 +116,14 @@ validFormatCsrfToken (CsrfToken st)
 makeCsrfToken :: (MonadError500 err m, MonadViewCsrfSecret e m, MonadUseThentosSessionToken s m) =>
                  CsrfNonce -> m CsrfToken
 makeCsrfToken (CsrfNonce rnd) = do
-    maySessionToken <- use getThentosSessionToken
+    maySessionToken <- use getSessionToken
     case maySessionToken of
         Nothing -> throwError500 "No session token"
         Just sessionToken -> do
             Just (CsrfSecret key) <- view csrfSecret
             return $ CsrfToken . cs $ rnd <> convertToBase Base16 (hmac key (tok <> rnd) :: HMAC SHA256)
           where
-            tok = cs $ fromThentosSessionToken sessionToken
+            tok = cs $ fromSessionToken sessionToken
 
 -- | Extracts the nonce part from the CSRF token.
 csrfNonceFromCsrfToken :: CsrfToken -> CsrfNonce

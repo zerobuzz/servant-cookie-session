@@ -48,7 +48,7 @@ import qualified Network.Wai.Session.Map as SessionMap
 
 import Servant.Missing (MonadError500, throwError500)
 import Servant.Cookie.Session.CSRF
-import Servant.Cookie.Session.Types (ThentosSessionToken, MonadUseThentosSessionToken, getThentosSessionToken)
+import Servant.Cookie.Session.Types (SessionToken, MonadUseThentosSessionToken, getSessionToken)
 
 -- * servant integration
 
@@ -96,7 +96,7 @@ sessionMiddleware Proxy setCookie = do
 
 -- * frontend action monad
 
-type ExtendClearanceOnSessionToken m = ThentosSessionToken -> m ()
+type ExtendClearanceOnSessionToken m = SessionToken -> m ()
 
 noopExtendClearanceOnSessionToken :: Monad m => ExtendClearanceOnSessionToken m
 noopExtendClearanceOnSessionToken _ = pure ()
@@ -146,7 +146,7 @@ enterFAction key smap extendClearanceOnSessionToken ioNat nat = Nat $ \fServer -
             throwError500 "Could not read cookie."
         Just (lkup, ins) -> do
             cookieToFSession ioNat (lkup ())
-            maybeSessionToken <- use getThentosSessionToken
+            maybeSessionToken <- use getSessionToken
 
             -- update privileges
             mapM_ extendClearanceOnSessionToken maybeSessionToken

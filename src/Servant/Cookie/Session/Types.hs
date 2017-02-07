@@ -18,15 +18,15 @@ import Servant.API (FromHttpApiData)
 import qualified Codec.Binary.Base64 as Base64
 import qualified Data.Text as ST
 
-newtype ThentosSessionToken = ThentosSessionToken { fromThentosSessionToken :: ST }
+newtype SessionToken = SessionToken { fromSessionToken :: ST }
     deriving ( Eq, Ord, Show, Read, Typeable, Generic, IsString
              , FromHttpApiData, FromJSON, ToJSON
              )
 
-class GetThentosSessionToken a where
-    getThentosSessionToken :: Getter a (Maybe ThentosSessionToken)
+class GetSessionToken a where
+    getSessionToken :: Getter a (Maybe SessionToken)
 
-type MonadUseThentosSessionToken s m = (MonadState s m, GetThentosSessionToken s)
+type MonadUseThentosSessionToken s m = (MonadState s m, GetSessionToken s)
 
 -- | Return a base64 encoded random string of length 24 (18 bytes of entropy).
 -- We use @_@ instead of @/@ as last letter of the base64 alphabet since it allows using names
@@ -40,5 +40,5 @@ type MonadUseThentosSessionToken s m = (MonadState s m, GetThentosSessionToken s
 freshRandomName :: MonadRandom m => m ST
 freshRandomName = ST.replace "/" "_" . cs . Base64.encode <$> getRandomBytes 18
 
-freshSessionToken :: MonadRandom m => m ThentosSessionToken
-freshSessionToken = ThentosSessionToken <$> freshRandomName
+freshSessionToken :: MonadRandom m => m SessionToken
+freshSessionToken = SessionToken <$> freshRandomName
