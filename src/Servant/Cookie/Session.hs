@@ -10,8 +10,8 @@
 {-# LANGUAGE TypeOperators         #-}
 
 module Servant.Cookie.Session
-    ( serveFAction
-    , enterFAction
+    ( serveAction
+    , enterAction
 
     -- * types
     , SessionStorage
@@ -94,7 +94,7 @@ sessionMiddleware Proxy setCookie = do
 
 -- * frontend action monad
 
-serveFAction :: forall api m s e v.
+serveAction :: forall api m s e v.
         ( HasServer api '[]
         , Enter (ServerT api m) (m :~> ExceptT ServantErr IO) (Server api)
         , MonadRandom m, MonadError500 e m, MonadSessionCsrfToken s m
@@ -106,7 +106,7 @@ serveFAction :: forall api m s e v.
      -> IO :~> m
      -> m :~> ExceptT ServantErr IO
      -> ServerT api m -> IO Application
-serveFAction _ sProxy setCookie ioNat nat fServer =
+serveAction _ sProxy setCookie ioNat nat fServer =
     app <$> sessionMiddleware sProxy setCookie
   where
     app :: (Middleware, SessionKey s) -> Application
@@ -116,9 +116,9 @@ serveFAction _ sProxy setCookie ioNat nat fServer =
     server' key smap = enter nt fServer
       where
         nt :: m :~> ExceptT ServantErr IO
-        nt = enterFAction key smap ioNat nat
+        nt = enterAction key smap ioNat nat
 
-enterFAction
+enterAction
     :: ( MonadRandom m, MonadError500 e m, MonadSessionCsrfToken s m
        , MonadViewCsrfSecret v m, MonadSessionToken s m)
     => SessionKey s
@@ -126,14 +126,14 @@ enterFAction
     -> IO :~> m
     -> m :~> ExceptT ServantErr IO
     -> m :~> ExceptT ServantErr IO
-enterFAction key smap ioNat nat = Nat $ \fServer -> unNat nat $ do
+enterAction key smap ioNat nat = Nat $ \fServer -> unNat nat $ do
     case smap key of
         Nothing ->
             -- FIXME: this case should not be code 500, as it can (probably) be provoked by
             -- the client.
             throwError500 "Could not read cookie."
         Just (lkup, ins) -> do
-            cookieToFSession ioNat (lkup ())
+            cookieToSession ioNat (lkup ())
             maybeSessionToken <- use getSessionToken
 
             -- refresh the CSRF token if there is a session token
@@ -141,13 +141,13 @@ enterFAction key smap ioNat nat = Nat $ \fServer -> unNat nat $ do
 
             fServer `finally` (do
                 clearCsrfToken  -- could be replaced by 'refreshCsrfToken'
-                cookieFromFSession ioNat (ins ()))
+                cookieFromSession ioNat (ins ()))
 
 -- | Write 'FrontendSessionData' from the 'SSession' state to 'MonadFAction' state.  If there
 -- is no state, do nothing.
-cookieToFSession :: MonadState s m => IO :~> m -> IO (Maybe s) -> m ()
-cookieToFSession ioNat r = unNat ioNat r >>= mapM_ put
+cookieToSession :: MonadState s m => IO :~> m -> IO (Maybe s) -> m ()
+cookieToSession ioNat r = unNat ioNat r >>= mapM_ put
 
 -- | Read 'FrontendSessionData' from 'MonadFAction' and write back into 'SSession' state.
-cookieFromFSession :: MonadState s m => IO :~> m -> (s -> IO ()) -> m ()
-cookieFromFSession ioNat w = get >>= unNat ioNat . w
+cookieFromSession :: MonadState s m => IO :~> m -> (s -> IO ()) -> m ()
+cookieFromSession ioNat w = get >>= unNat ioNat . w
