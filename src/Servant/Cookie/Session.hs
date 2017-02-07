@@ -9,7 +9,7 @@
 {-# LANGUAGE TypeFamilies          #-}
 {-# LANGUAGE TypeOperators         #-}
 
-module Thentos.CookieSession
+module Servant.Cookie.Session
     ( serveFAction
     , enterFAction
     , noopExtendClearanceOnSessionToken
@@ -47,8 +47,8 @@ import qualified Data.Vault.Lazy as Vault
 import qualified Network.Wai.Session.Map as SessionMap
 
 import Servant.Missing (MonadError500, throwError500)
-import Thentos.CookieSession.CSRF
-import Thentos.CookieSession.Types (ThentosSessionToken, MonadUseThentosSessionToken, getThentosSessionToken)
+import Servant.Cookie.Session.CSRF
+import Servant.Cookie.Session.Types (ThentosSessionToken, MonadUseThentosSessionToken, getThentosSessionToken)
 
 -- * servant integration
 
@@ -80,7 +80,7 @@ cookieName :: SetCookie -> SBS
 cookieName setCookie =
     if cookieNameValid n
         then n
-        else error $ "Thentos.CookieSession: bad cookie name: " ++ show n
+        else error $ "Servant.Cookie.Session: bad cookie name: " ++ show n
   where
     n = setCookieName setCookie
 

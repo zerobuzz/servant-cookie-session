@@ -4,7 +4,7 @@
 {-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE PackageImports             #-}
 
-module Thentos.CookieSession.Types where
+module Servant.Cookie.Session.Types where
 
 import Control.Lens (Getter)
 import Control.Monad.State.Class (MonadState)

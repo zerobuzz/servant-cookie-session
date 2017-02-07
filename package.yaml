@@ -39,9 +39,9 @@ dependencies:
 
 library:
   exposed-modules:
-    - Thentos.CookieSession
-    - Thentos.CookieSession.CSRF
-    - Thentos.CookieSession.Types
+    - Servant.Cookie.Session
+    - Servant.Cookie.Session.CSRF
+    - Servant.Cookie.Session.Types
     - Control.Monad.Except.Missing
     - Servant.Missing
   source-dirs:

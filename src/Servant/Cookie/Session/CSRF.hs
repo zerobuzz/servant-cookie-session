@@ -9,7 +9,7 @@
 {-# LANGUAGE TypeFamilies               #-}
 {-# LANGUAGE TypeOperators              #-}
 
-module Thentos.CookieSession.CSRF
+module Servant.Cookie.Session.CSRF
     ( CsrfSecret(..)
     , CsrfToken(..)
     , CsrfNonce(..)
@@ -43,7 +43,7 @@ import qualified Data.ByteString as SBS
 import qualified Data.Text as ST
 
 import Servant.Missing (MonadError500, throwError500)
-import Thentos.CookieSession.Types (ThentosSessionToken(fromThentosSessionToken), MonadUseThentosSessionToken, getThentosSessionToken)
+import Servant.Cookie.Session.Types (ThentosSessionToken(fromThentosSessionToken), MonadUseThentosSessionToken, getThentosSessionToken)
 
 -- | This token is used to prevent CSRF (Cross Site Request Forgery).
 -- This token is part of 'FrontendSessionData' since it is required by the views which

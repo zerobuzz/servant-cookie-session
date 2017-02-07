@@ -5,8 +5,6 @@ import "hint" HLint.HLint
 
 -- how to tweak the rules: http://community.haskell.org/~ndm/darcs/hlint/hlint.htm
 
-ignore "Redundant lambda" = Thentos.Backend.Api.Simple
-ignore "Redundant bracket" = Thentos.Backend.Api.Simple
 ignore "Redundant $"
 ignore "Redundant do"
 ignore "Use ."
