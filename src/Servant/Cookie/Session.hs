@@ -34,7 +34,7 @@ import Data.Maybe (isJust)
 import Data.Proxy (Proxy(Proxy))
 import Data.String.Conversions
 import Network.Wai (Middleware, Application, vault)
-import Network.Wai.Session (SessionStore, Session, withSession)
+import qualified Network.Wai.Session as Wai (SessionStore, Session, withSession)
 import Servant (ServantErr, (:>), serve, HasServer, ServerT, Server, (:~>)(Nat), unNat)
 import Servant.Server.Internal (route, passToServer)
 import Servant.Utils.Enter (Enter, enter)
@@ -59,7 +59,7 @@ data SSession (m :: * -> *) (k :: *) (v :: *)
 -- | 'HasServer' instance for 'SSession'.
 instance (HasServer sublayout context) => HasServer (SSession n k v :> sublayout) context where
   type ServerT (SSession n k v :> sublayout) m
-    = (Vault.Key (Session n k v) -> Maybe (Session n k v)) -> ServerT sublayout m
+    = (Vault.Key (Wai.Session n k v) -> Maybe (Wai.Session n k v)) -> ServerT sublayout m
   route Proxy context subserver =
     route (Proxy :: Proxy sublayout) context (passToServer subserver go)
     where
@@ -68,9 +68,9 @@ instance (HasServer sublayout context) => HasServer (SSession n k v :> sublayout
 
 -- * middleware
 
-type FSession        fsd = Session IO () fsd
+type FSession        fsd = Wai.Session IO () fsd
 type FSessionMap     fsd = Vault.Key (FSession fsd) -> Maybe (FSession fsd)
-type FSessionStore   fsd = SessionStore IO () fsd
+type FSessionStore   fsd = Wai.SessionStore IO () fsd
 type FServantSession fsd = SSession IO () fsd
 type FSessionKey     fsd = Vault.Key (FSession fsd)
 
@@ -89,7 +89,7 @@ sessionMiddleware :: Proxy fsd -> SetCookie -> IO (Middleware, FSessionKey fsd)
 sessionMiddleware Proxy setCookie = do
     smap :: FSessionStore fsd <- SessionMap.mapStore_
     key  :: Vault.Key (FSession fsd) <- Vault.newKey
-    return (withSession smap (cookieName setCookie) setCookie key, key)
+    return (Wai.withSession smap (cookieName setCookie) setCookie key, key)
 
 
 -- * frontend action monad
