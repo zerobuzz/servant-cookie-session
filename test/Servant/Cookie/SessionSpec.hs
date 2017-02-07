@@ -14,7 +14,7 @@ import           Control.Monad.Trans.Except (ExceptT)
 import qualified Data.Vault.Lazy            as Vault
 import           Network.HTTP.Types         (methodGet)
 import           Network.Wai                (Middleware, Application)
-import           Network.Wai.Session        (SessionStore, Session, withSession)
+import qualified Network.Wai.Session        as Wai (SessionStore, Session, withSession)
 import           Network.Wai.Session.Map    (mapStore)
 import           Network.Wai.Test           (simpleBody, simpleHeaders)
 import           Servant                    (Proxy(Proxy), ServantErr, Get, JSON, (:>), serve)
@@ -51,13 +51,13 @@ spec = describe "Servant.Cookie.Session" . with server $ do
         liftIO $ setCookieMaxAge c `shouldBe` setCookieMaxAge setCookieOpts
 
 
-type API = SSession IO Int Int :> Get '[JSON] String
+type API = SessionStorage IO Int Int :> Get '[JSON] String
 
 setCookieOpts :: SetCookie
 setCookieOpts = def { setCookieName = "test", setCookieMaxAge = Just 300 }
 
-sessionMiddleware :: SessionStore IO Int a -> Vault.Key (Session IO Int a) -> Middleware
-sessionMiddleware s = withSession s "test" setCookieOpts
+sessionMiddleware :: Wai.SessionStore IO Int a -> Vault.Key (Wai.Session IO Int a) -> Middleware
+sessionMiddleware s = Wai.withSession s "test" setCookieOpts
 
 server :: IO Application
 server = do
@@ -66,8 +66,8 @@ server = do
     return $ sessionMiddleware ref key
            $ serve (Proxy :: Proxy API) (handler key)
 
-handler :: Vault.Key (Session IO Int Int)
-        -> (Vault.Key (Session IO Int Int) -> Maybe (Session IO Int Int))
+handler :: Vault.Key (Wai.Session IO Int Int)
+        -> (Vault.Key (Wai.Session IO Int Int) -> Maybe (Wai.Session IO Int Int))
         -> ExceptT ServantErr IO String
 handler key smap = do
     x <- liftIO $ lkup 1

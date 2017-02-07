@@ -14,12 +14,12 @@ module Servant.Cookie.Session
     , enterFAction
 
     -- * types
-    , SSession
-    , FSession
-    , FSessionMap
-    , FSessionStore
-    , FServantSession
-    , FSessionKey
+    , SessionStorage
+    , Session
+    , SessionMap
+    , SessionStore
+    , ServantSession
+    , SessionKey
     )
 where
 
@@ -50,15 +50,15 @@ import Servant.Cookie.Session.Types (MonadSessionToken, getSessionToken)
 
 -- * servant integration
 
--- | @SSession m k v@ represents a session storage with keys of type @k@,
+-- | @SessionStorage m k v@ represents a session storage with keys of type @k@,
 -- values of type @v@, and operating under the monad @m@.
 -- The underlying implementation uses the 'wai-session' package, and any
 -- backend compatible with that package should work here too.
-data SSession (m :: * -> *) (k :: *) (v :: *)
+data SessionStorage (m :: * -> *) (k :: *) (v :: *)
 
--- | 'HasServer' instance for 'SSession'.
-instance (HasServer sublayout context) => HasServer (SSession n k v :> sublayout) context where
-  type ServerT (SSession n k v :> sublayout) m
+-- | 'HasServer' instance for 'SessionStorage'.
+instance (HasServer sublayout context) => HasServer (SessionStorage n k v :> sublayout) context where
+  type ServerT (SessionStorage n k v :> sublayout) m
     = (Vault.Key (Wai.Session n k v) -> Maybe (Wai.Session n k v)) -> ServerT sublayout m
   route Proxy context subserver =
     route (Proxy :: Proxy sublayout) context (passToServer subserver go)
@@ -68,11 +68,11 @@ instance (HasServer sublayout context) => HasServer (SSession n k v :> sublayout
 
 -- * middleware
 
-type FSession        fsd = Wai.Session IO () fsd
-type FSessionMap     fsd = Vault.Key (FSession fsd) -> Maybe (FSession fsd)
-type FSessionStore   fsd = Wai.SessionStore IO () fsd
-type FServantSession fsd = SSession IO () fsd
-type FSessionKey     fsd = Vault.Key (FSession fsd)
+type Session        fsd = Wai.Session IO () fsd
+type SessionMap     fsd = Vault.Key (Session fsd) -> Maybe (Session fsd)
+type SessionStore   fsd = Wai.SessionStore IO () fsd
+type ServantSession fsd = SessionStorage IO () fsd
+type SessionKey     fsd = Vault.Key (Session fsd)
 
 cookieName :: SetCookie -> SBS
 cookieName setCookie =
@@ -85,10 +85,10 @@ cookieName setCookie =
 cookieNameValid :: SBS -> Bool
 cookieNameValid = SBS.all (`elem` (fromIntegral . ord <$> '_':['a'..'z']))
 
-sessionMiddleware :: Proxy fsd -> SetCookie -> IO (Middleware, FSessionKey fsd)
+sessionMiddleware :: Proxy fsd -> SetCookie -> IO (Middleware, SessionKey fsd)
 sessionMiddleware Proxy setCookie = do
-    smap :: FSessionStore fsd <- SessionMap.mapStore_
-    key  :: Vault.Key (FSession fsd) <- Vault.newKey
+    smap :: SessionStore fsd <- SessionMap.mapStore_
+    key  :: Vault.Key (Session fsd) <- Vault.newKey
     return (Wai.withSession smap (cookieName setCookie) setCookie key, key)
 
 
@@ -109,10 +109,10 @@ serveFAction :: forall api m s e v.
 serveFAction _ sProxy setCookie ioNat nat fServer =
     app <$> sessionMiddleware sProxy setCookie
   where
-    app :: (Middleware, FSessionKey s) -> Application
-    app (mw, key) = mw $ serve (Proxy :: Proxy (FServantSession s :> api)) (server' key)
+    app :: (Middleware, SessionKey s) -> Application
+    app (mw, key) = mw $ serve (Proxy :: Proxy (ServantSession s :> api)) (server' key)
 
-    server' :: FSessionKey s -> FSessionMap s -> Server api
+    server' :: SessionKey s -> SessionMap s -> Server api
     server' key smap = enter nt fServer
       where
         nt :: m :~> ExceptT ServantErr IO
@@ -121,8 +121,8 @@ serveFAction _ sProxy setCookie ioNat nat fServer =
 enterFAction
     :: ( MonadRandom m, MonadError500 e m, MonadSessionCsrfToken s m
        , MonadViewCsrfSecret v m, MonadSessionToken s m)
-    => FSessionKey s
-    -> FSessionMap s
+    => SessionKey s
+    -> SessionMap s
     -> IO :~> m
     -> m :~> ExceptT ServantErr IO
     -> m :~> ExceptT ServantErr IO
