@@ -12,7 +12,6 @@
 module Servant.Cookie.Session
     ( serveFAction
     , enterFAction
-    , noopExtendClearanceOnSessionToken
 
     -- * types
     , SSession
@@ -21,7 +20,6 @@ module Servant.Cookie.Session
     , FSessionStore
     , FServantSession
     , FSessionKey
-    , ExtendClearanceOnSessionToken
     )
 where
 
@@ -48,7 +46,7 @@ import qualified Network.Wai.Session.Map as SessionMap
 
 import Servant.Missing (MonadError500, throwError500)
 import Servant.Cookie.Session.CSRF
-import Servant.Cookie.Session.Types (SessionToken, MonadSessionToken, getSessionToken)
+import Servant.Cookie.Session.Types (MonadSessionToken, getSessionToken)
 
 -- * servant integration
 
@@ -96,14 +94,6 @@ sessionMiddleware Proxy setCookie = do
 
 -- * frontend action monad
 
-type ExtendClearanceOnSessionToken m = SessionToken -> m ()
-
-noopExtendClearanceOnSessionToken :: Monad m => ExtendClearanceOnSessionToken m
-noopExtendClearanceOnSessionToken _ = pure ()
-
--- | The 'ExtendClearanceOnSessionToken' argument can be used in combination with the lio package to
--- write the access policy into the server monad state.  If your way of access restriction has no
--- need for that, simply pass @noopExtendClearanceOnSessionToken@.
 serveFAction :: forall api m s e v.
         ( HasServer api '[]
         , Enter (ServerT api m) (m :~> ExceptT ServantErr IO) (Server api)
@@ -113,11 +103,10 @@ serveFAction :: forall api m s e v.
      => Proxy api
      -> Proxy s
      -> SetCookie
-     -> ExtendClearanceOnSessionToken m
      -> IO :~> m
      -> m :~> ExceptT ServantErr IO
      -> ServerT api m -> IO Application
-serveFAction _ sProxy setCookie extendClearanceOnSessionToken ioNat nat fServer =
+serveFAction _ sProxy setCookie ioNat nat fServer =
     app <$> sessionMiddleware sProxy setCookie
   where
     app :: (Middleware, FSessionKey s) -> Application
@@ -127,18 +116,17 @@ serveFAction _ sProxy setCookie extendClearanceOnSessionToken ioNat nat fServer 
     server' key smap = enter nt fServer
       where
         nt :: m :~> ExceptT ServantErr IO
-        nt = enterFAction key smap extendClearanceOnSessionToken ioNat nat
+        nt = enterFAction key smap ioNat nat
 
 enterFAction
     :: ( MonadRandom m, MonadError500 e m, MonadSessionCsrfToken s m
        , MonadViewCsrfSecret v m, MonadSessionToken s m)
     => FSessionKey s
     -> FSessionMap s
-    -> ExtendClearanceOnSessionToken m
     -> IO :~> m
     -> m :~> ExceptT ServantErr IO
     -> m :~> ExceptT ServantErr IO
-enterFAction key smap extendClearanceOnSessionToken ioNat nat = Nat $ \fServer -> unNat nat $ do
+enterFAction key smap ioNat nat = Nat $ \fServer -> unNat nat $ do
     case smap key of
         Nothing ->
             -- FIXME: this case should not be code 500, as it can (probably) be provoked by
@@ -147,9 +135,6 @@ enterFAction key smap extendClearanceOnSessionToken ioNat nat = Nat $ \fServer -
         Just (lkup, ins) -> do
             cookieToFSession ioNat (lkup ())
             maybeSessionToken <- use getSessionToken
-
-            -- update privileges
-            mapM_ extendClearanceOnSessionToken maybeSessionToken
 
             -- refresh the CSRF token if there is a session token
             when (isJust maybeSessionToken) refreshCsrfToken
