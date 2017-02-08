@@ -20,6 +20,13 @@ module Servant.Cookie.Session
     , SessionStore
     , ServantSession
     , SessionKey
+
+    -- * necessary modules
+    , module Web.Cookie
+    , module Crypto.Random
+    , module Servant.Cookie.Session.CSRF
+    , module Servant.Cookie.Session.Types
+    , module Servant.Cookie.Session.Error
     )
 where
 
@@ -38,15 +45,15 @@ import qualified Network.Wai.Session as Wai (SessionStore, Session, withSession)
 import Servant (ServantErr, (:>), serve, HasServer, ServerT, Server, (:~>)(Nat), unNat)
 import Servant.Server.Internal (route, passToServer)
 import Servant.Utils.Enter (Enter, enter)
-import Web.Cookie (SetCookie, setCookieName)
+import Web.Cookie
 
 import qualified Data.ByteString as SBS
 import qualified Data.Vault.Lazy as Vault
 import qualified Network.Wai.Session.Map as SessionMap
 
-import Servant.Missing (MonadError500, throwError500)
 import Servant.Cookie.Session.CSRF
-import Servant.Cookie.Session.Types (MonadSessionToken, getSessionToken)
+import Servant.Cookie.Session.Error
+import Servant.Cookie.Session.Types
 
 -- * servant integration
 
@@ -105,7 +112,8 @@ serveAction :: forall api m s e v.
      -> SetCookie
      -> IO :~> m
      -> m :~> ExceptT ServantErr IO
-     -> ServerT api m -> IO Application
+     -> ServerT api m
+     -> IO Application
 serveAction _ sProxy setCookie ioNat nat fServer =
     app <$> sessionMiddleware sProxy setCookie
   where

@@ -42,7 +42,7 @@ import GHC.Generics (Generic)
 import qualified Data.ByteString as SBS
 import qualified Data.Text as ST
 
-import Servant.Missing (MonadError500, throwError500)
+import Servant.Cookie.Session.Error (MonadError500, throwError500)
 import Servant.Cookie.Session.Types (SessionToken(fromSessionToken), MonadSessionToken, getSessionToken)
 
 -- | This token is used to prevent CSRF (Cross Site Request Forgery).

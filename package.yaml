@@ -41,9 +41,9 @@ library:
   exposed-modules:
     - Servant.Cookie.Session
     - Servant.Cookie.Session.CSRF
+    - Servant.Cookie.Session.Error
     - Servant.Cookie.Session.Types
     - Control.Monad.Except.Missing
-    - Servant.Missing
   source-dirs:
     - src
 

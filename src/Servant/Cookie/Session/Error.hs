@@ -9,7 +9,7 @@
 {-# LANGUAGE TypeFamilies          #-}
 {-# LANGUAGE TypeOperators         #-}
 
-module Servant.Missing
+module Servant.Cookie.Session.Error
   ( ThrowServantErr(..)
   , MonadServantErr
   , ThrowError500(..)
