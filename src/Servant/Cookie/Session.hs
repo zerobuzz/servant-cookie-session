@@ -37,13 +37,13 @@ import Control.Monad.State.Class (MonadState(..))
 import Control.Monad.Trans.Except (ExceptT)
 import Crypto.Random (MonadRandom(..))
 import Data.Char (ord)
-import Data.Maybe (isJust)
+import Data.Maybe (fromMaybe, isJust)
 import Data.Proxy (Proxy(Proxy))
 import Data.String.Conversions
 import Network.Wai (Middleware, Application, vault)
 import qualified Network.Wai.Session as Wai (SessionStore, Session, withSession)
-import Servant (ServantErr, (:>), serve, HasServer, ServerT, Server, (:~>)(Nat), unNat)
-import Servant.Server.Internal (route, passToServer)
+import Servant
+import Servant.Server.Internal (route, passToServer, responseServantErr)
 import Servant.Utils.Enter (Enter, enter)
 import Web.Cookie
 
@@ -113,12 +113,18 @@ serveAction :: forall api m s e v.
      -> IO :~> m
      -> m :~> ExceptT ServantErr IO
      -> ServerT api m
+     -> Maybe Application
      -> IO Application
-serveAction _ sProxy setCookie ioNat nat fServer =
+serveAction _ sProxy setCookie ioNat nat fServer mFallback =
     app <$> sessionMiddleware sProxy setCookie
   where
     app :: (Middleware, SessionKey s) -> Application
-    app (mw, key) = mw $ serve (Proxy :: Proxy (ServantSession s :> api)) (server' key)
+    app (mw, key) = mw $ serve (Proxy :: Proxy ((ServantSession s :> api) :<|> Raw)) ((server' key) :<|> fallback)
+
+    error404 :: Application
+    error404 = serve (Proxy :: Proxy Raw) (\_ respond -> respond $ responseServantErr err404)
+
+    fallback = fromMaybe error404 mFallback
 
     server' :: SessionKey s -> SessionMap s -> Server api
     server' key smap = enter nt fServer
