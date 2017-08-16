@@ -84,11 +84,13 @@ cookieName setCookie =
 cookieNameValid :: SBS -> Bool
 cookieNameValid = SBS.all (`elem` (fromIntegral . ord <$> '_':['a'..'z']))
 
-sessionMiddleware :: Proxy fsd -> SetCookie -> IO (Middleware, SessionKey fsd)
+-- | (the key is the same over the lifetime of the server process, but it needs to be applied to a
+-- fresh state each time a new request brings a new cookie value.)
+sessionMiddleware :: Proxy fsd -> SetCookie -> IO (Middleware, SessionStore IO () fsd, SessionKey fsd)
 sessionMiddleware Proxy setCookie = do
     smap :: SessionStore IO () fsd <- mapStore_
     key  :: SessionKey fsd <- V.newKey
-    return (withSession smap (cookieName setCookie) setCookie key, key)
+    return (withSession smap (cookieName setCookie) setCookie key, smap, key)
 
 
 -- * frontend action monad
@@ -106,20 +108,20 @@ serveAction :: forall api m fsd e v.
      -> m :~> ExceptT ServantErr IO
      -> ServerT api m
      -> Maybe Application
-     -> IO Application
+     -> IO (Application, SessionStore IO () fsd, SessionKey fsd)
 serveAction _ sProxy setCookie ioNat nat fServer mFallback =
     app <$> sessionMiddleware sProxy setCookie
   where
-    app :: (Middleware, SessionKey fsd) -> Application
-    app (mw, key) = mw $ serve (Proxy :: Proxy ((SessionStorage IO () fsd :> api) :<|> Raw)) ((server' key) :<|> fallback)
+    app :: (Middleware, SessionStore IO () fsd, SessionKey fsd)
+        -> (Application, SessionStore IO () fsd, SessionKey fsd)
+    app (mw, smap, key) = ( mw $ serve (Proxy :: Proxy ((SessionStorage IO () fsd :> api) :<|> Raw)) ((server' key) :<|> fallback)
+                          , smap, key)
 
     error404 :: Application
     error404 = serve (Proxy :: Proxy Raw) (\_ respond -> respond $ responseServantErr err404)
 
     fallback = fromMaybe error404 mFallback
 
-    -- the key is the same over the lifetime of the server process, but the smap is computed fresh
-    -- from every request.
     server' :: SessionKey fsd -> (SessionKey fsd -> Maybe (Session IO () fsd)) -> Server api
     server' key smap = enter nt fServer
       where
