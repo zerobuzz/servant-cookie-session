@@ -15,11 +15,6 @@ module Servant.Cookie.Session
 
     -- * types
     , SessionStorage
-    , Session
-    , SessionMap
-    , SessionStore
-    , ServantSession
-    , SessionKey
 
     -- * necessary modules
     , module Web.Cookie
@@ -62,25 +57,30 @@ import Servant.Cookie.Session.Types
 -- values of type @v@, and operating under the monad @m@.
 -- The underlying implementation uses the 'wai-session' package, and any
 -- backend compatible with that package should work here too.
-data SessionStorage (m :: * -> *) (k :: *) (v :: *)
+data SessionStorage (m :: * -> *) (v :: *)
+
+data SessionKey = SessionKey
 
 -- | 'HasServer' instance for 'SessionStorage'.
-instance (HasServer sublayout context) => HasServer (SessionStorage n k v :> sublayout) context where
-  type ServerT (SessionStorage n k v :> sublayout) m
-    = (Vault.Key (Wai.Session n k v) -> Maybe (Wai.Session n k v)) -> ServerT sublayout m
+instance (HasServer sublayout context, Vault.Key v ~ SessionKey) => HasServer (SessionStorage n v :> sublayout) context where
+  type ServerT (SessionStorage n v :> sublayout) m
+    = Maybe (Wai.Session n SessionKey v) -> ServerT sublayout m
   route Proxy context subserver =
     route (Proxy :: Proxy sublayout) context (passToServer subserver go)
     where
-      go request key = Vault.lookup key $ vault request
+      go request = Vault.lookup SessionKey $ vault request
+
+
+{-
+type SimpleSessionStore m fsd = Maybe SBS -> IO ((m (Maybe fsd), fsd -> m SessionKey), IO SBS)
+
+mkSimpleSessionStore :: forall fsd. SessionStore fsd -> SimpleSessionStore IO fsd
+mkSimpleSessionStore store = fmap (\((getst :: SessionKey -> IO (Maybe fsd), setst :: SessionKey -> _), _ :: _) -> _) . store
+-}
+
 
 
 -- * middleware
-
-type Session        fsd = Wai.Session IO () fsd
-type SessionMap     fsd = Vault.Key (Session fsd) -> Maybe (Session fsd)
-type SessionStore   fsd = Wai.SessionStore IO () fsd
-type ServantSession fsd = SessionStorage IO () fsd
-type SessionKey     fsd = Vault.Key (Session fsd)
 
 cookieName :: SetCookie -> SBS
 cookieName setCookie =
@@ -93,11 +93,10 @@ cookieName setCookie =
 cookieNameValid :: SBS -> Bool
 cookieNameValid = SBS.all (`elem` (fromIntegral . ord <$> '_':['a'..'z']))
 
-sessionMiddleware :: Proxy fsd -> SetCookie -> IO (Middleware, SessionKey fsd)
+sessionMiddleware :: Proxy fsd -> SetCookie -> IO Middleware
 sessionMiddleware Proxy setCookie = do
-    smap :: SessionStore fsd <- SessionMap.mapStore_
-    key  :: Vault.Key (Session fsd) <- Vault.newKey
-    return (Wai.withSession smap (cookieName setCookie) setCookie key, key)
+    smap :: Wai.SessionStore IO SessionKey fsd <- SessionMap.mapStore_
+    return (Wai.withSession smap (cookieName setCookie) setCookie SessionKey)
 
 
 -- * frontend action monad
@@ -119,36 +118,35 @@ serveAction :: forall api m s e v.
 serveAction _ sProxy setCookie ioNat nat fServer mFallback =
     app <$> sessionMiddleware sProxy setCookie
   where
-    app :: (Middleware, SessionKey s) -> Application
-    app (mw, key) = mw $ serve (Proxy :: Proxy ((ServantSession s :> api) :<|> Raw)) ((server' key) :<|> fallback)
+    app :: Middleware -> Application
+    app mw = mw $ serve (Proxy :: Proxy ((SessionStorage IO s :> api) :<|> Raw)) (server' :<|> fallback)
 
     error404 :: Application
     error404 = serve (Proxy :: Proxy Raw) (\_ respond -> respond $ responseServantErr err404)
 
     fallback = fromMaybe error404 mFallback
 
-    server' :: SessionKey s -> SessionMap s -> Server api
-    server' key smap = enter nt fServer
+    server' :: (SessionKey -> Maybe (Wai.Session IO SessionKey s)) -> Server api
+    server' smap = enter nt fServer
       where
         nt :: m :~> ExceptT ServantErr IO
-        nt = enterAction key smap ioNat nat
+        nt = enterAction smap ioNat nat
 
 enterAction
     :: ( MonadRandom m, MonadError500 e m, MonadSessionCsrfToken s m
        , MonadViewCsrfSecret v m, MonadSessionToken s m)
-    => SessionKey s
-    -> SessionMap s
+    => (SessionKey -> Maybe (Wai.Session IO SessionKey s))
     -> IO :~> m
     -> m :~> ExceptT ServantErr IO
     -> m :~> ExceptT ServantErr IO
-enterAction key smap ioNat nat = Nat $ \fServer -> unNat nat $ do
-    case smap key of
+enterAction smap ioNat nat = Nat $ \fServer -> unNat nat $ do
+    case smap SessionKey of
         Nothing ->
             -- FIXME: this case should not be code 500, as it can (probably) be provoked by
             -- the client.
             throwError500 "Could not read cookie."
         Just (lkup, ins) -> do
-            cookieToSession ioNat (lkup ())
+            cookieToSession ioNat (lkup SessionKey)
             maybeSessionToken <- use getSessionToken
 
             -- refresh the CSRF token if there is a session token
@@ -156,13 +154,14 @@ enterAction key smap ioNat nat = Nat $ \fServer -> unNat nat $ do
 
             fServer `finally` (do
                 clearCsrfToken  -- could be replaced by 'refreshCsrfToken'
-                cookieFromSession ioNat (ins ()))
+                cookieFromSession ioNat (ins SessionKey))
 
--- | Write 'FrontendSessionData' from the 'SSession' state to 'MonadFAction' state.  If there
--- is no state, do nothing.
-cookieToSession :: MonadState s m => IO :~> m -> IO (Maybe s) -> m ()
-cookieToSession ioNat r = unNat ioNat r >>= mapM_ put
+  where
+    -- | Write 'FrontendSessionData' from the 'SSession' state to 'MonadFAction' state.  If there
+    -- is no state, do nothing.
+    cookieToSession :: MonadState s m => IO :~> m -> IO (Maybe s) -> m ()
+    cookieToSession ioNat r = unNat ioNat r >>= mapM_ put
 
--- | Read 'FrontendSessionData' from 'MonadFAction' and write back into 'SSession' state.
-cookieFromSession :: MonadState s m => IO :~> m -> (s -> IO ()) -> m ()
-cookieFromSession ioNat w = get >>= unNat ioNat . w
+    -- | Read 'FrontendSessionData' from 'MonadFAction' and write back into 'SSession' state.
+    cookieFromSession :: MonadState s m => IO :~> m -> (s -> IO ()) -> m ()
+    cookieFromSession ioNat w = get >>= unNat ioNat . w
