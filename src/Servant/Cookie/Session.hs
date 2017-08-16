@@ -15,6 +15,7 @@ module Servant.Cookie.Session
 
     -- * types
     , SessionStorage
+    , SessionKey
 
     -- * necessary modules
     , module Web.Cookie
