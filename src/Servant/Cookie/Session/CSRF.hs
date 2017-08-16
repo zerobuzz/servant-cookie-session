@@ -4,6 +4,7 @@
 {-# LANGUAGE FlexibleContexts           #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings          #-}
+{-# LANGUAGE PackageImports             #-}
 {-# LANGUAGE RankNTypes                 #-}
 {-# LANGUAGE ScopedTypeVariables        #-}
 {-# LANGUAGE TypeFamilies               #-}
@@ -29,8 +30,8 @@ import Control.Lens
 import Control.Monad.Reader.Class (MonadReader)
 import Control.Monad.State.Class (MonadState)
 import Control.Monad (when)
-import Crypto.Hash (SHA256)
-import Crypto.MAC.HMAC (HMAC,hmac)
+import "cryptonite" Crypto.Hash (SHA256)
+import "cryptonite" Crypto.MAC.HMAC (HMAC,hmac)
 import Crypto.Random (MonadRandom(..))
 import Data.Aeson (FromJSON, ToJSON)
 import Data.ByteArray.Encoding (convertToBase, convertFromBase, Base(Base16))
