@@ -109,14 +109,15 @@ serveAction :: forall api m fsd e v.
      -> m :~> ExceptT ServantErr IO
      -> ServerT api m
      -> Maybe Application
-     -> IO (Application, SessionStore IO () fsd, SessionKey fsd)
+     -> IO (Application, SessionStore IO () fsd)
 serveAction _ sProxy setCookie ioNat nat fServer mFallback =
     app <$> sessionMiddleware sProxy setCookie
   where
     app :: (Middleware, SessionStore IO () fsd, SessionKey fsd)
-        -> (Application, SessionStore IO () fsd, SessionKey fsd)
-    app (mw, smap, key) = ( mw $ serve (Proxy :: Proxy ((SessionStorage IO () fsd :> api) :<|> Raw)) ((server' key) :<|> fallback)
-                          , smap, key)
+        -> (Application, SessionStore IO () fsd)
+    app (mw, smap, key) = ( mw $ serve (Proxy :: Proxy ((SessionStorage IO () fsd :> api) :<|> Raw))
+                                       (server' key :<|> fallback)
+                          , smap )
 
     error404 :: Application
     error404 = serve (Proxy :: Proxy Raw) (\_ respond -> respond $ responseServantErr err404)
