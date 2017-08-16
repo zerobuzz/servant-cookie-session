@@ -118,22 +118,23 @@ serveAction _ sProxy setCookie ioNat nat fServer mFallback =
 
     fallback = fromMaybe error404 mFallback
 
+    -- the key is the same over the lifetime of the server process, but the smap is computed fresh
+    -- from every request.
     server' :: SessionKey fsd -> (SessionKey fsd -> Maybe (Session IO () fsd)) -> Server api
     server' key smap = enter nt fServer
       where
         nt :: m :~> ExceptT ServantErr IO
-        nt = enterAction key smap ioNat nat
+        nt = enterAction (smap key) ioNat nat
 
 enterAction
     :: ( MonadRandom m, MonadError500 e m, MonadSessionCsrfToken fsd m
        , MonadViewCsrfSecret v m, MonadSessionToken fsd m)
-    => SessionKey fsd
-    -> (SessionKey fsd -> Maybe (Session IO () fsd))
+    => Maybe (Session IO () fsd)
     -> IO :~> m
     -> m :~> ExceptT ServantErr IO
     -> m :~> ExceptT ServantErr IO
-enterAction key smap ioNat nat = Nat $ \fServer -> unNat nat $ do
-    case smap key of
+enterAction mfsd ioNat nat = Nat $ \fServer -> unNat nat $ do
+    case mfsd of
         Nothing ->
             -- FIXME: this case should not be code 500, as it can (probably) be provoked by
             -- the client.
