@@ -3,12 +3,14 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings     #-}
 {-# LANGUAGE ScopedTypeVariables   #-}
+{-# LANGUAGE TupleSections         #-}
 {-# LANGUAGE TypeOperators         #-}
 
 {-# OPTIONS -fno-warn-incomplete-patterns #-}
 
 module Servant.Cookie.SessionSpec (spec) where
 
+import           Control.Concurrent.MVar    (newMVar)
 import           Control.Monad              (replicateM_)
 import           Control.Monad.Trans.Except (ExceptT)
 import qualified Data.Vault.Lazy            as Vault
@@ -66,13 +68,13 @@ server = do
     return $ sessionMiddleware ref key
            $ serve (Proxy :: Proxy API) (handler key)
 
-handler :: Vault.Key (Wai.Session IO Int Int)
-        -> (Vault.Key (Wai.Session IO Int Int) -> Maybe (Wai.Session IO Int Int))
+handler :: Vault.Key (Wai.Session IO Int (Lockable Int))
+        -> (Vault.Key (Wai.Session IO Int (Lockable Int)) -> Maybe (Wai.Session IO Int (Lockable Int)))
         -> ExceptT ServantErr IO String
 handler key smap = do
     x <- liftIO $ lkup 1
     case x of
-        Nothing -> liftIO (ins 1 0) >> return "Nothing"
-        Just y -> liftIO (ins 1 $ succ y) >> return (show y)
+        Nothing -> liftIO (newMVar () >>= ins 1 . (0,)) >> return "Nothing"
+        Just (y, lock) -> liftIO (ins 1 (succ y, lock)) >> return (show y)
   where
     Just (lkup, ins) = smap key
