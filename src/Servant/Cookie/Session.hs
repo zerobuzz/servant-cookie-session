@@ -131,7 +131,8 @@ serveAction _ sProxy setCookie ioNat nat fServer mFallback =
         nt = enterAction (smap key) ioNat nat
 
 enterAction
-    :: ( MonadRandom m, MonadError500 e m, MonadSessionCsrfToken fsd m
+    :: forall m e fsd v.
+       ( MonadRandom m, MonadError500 e m, MonadSessionCsrfToken fsd m
        , MonadViewCsrfSecret v m, MonadSessionToken fsd m)
     => Maybe (Session IO () fsd)
     -> IO :~> m
@@ -144,7 +145,7 @@ enterAction mfsd ioNat nat = Nat $ \fServer -> unNat nat $ do
             -- the client.
             throwError500 "Could not read cookie."
         Just (lkup, ins) -> do
-            cookieToSession ioNat (lkup ())
+            cookieToSession (lkup ())
             maybeSessionToken <- use getSessionToken
 
             -- refresh the CSRF token if there is a session token
@@ -152,13 +153,13 @@ enterAction mfsd ioNat nat = Nat $ \fServer -> unNat nat $ do
 
             fServer `finally` (do
                 clearCsrfToken  -- could be replaced by 'refreshCsrfToken'
-                cookieFromSession ioNat (ins ()))
+                cookieFromSession (ins ()))
+  where
+    -- | Write 'FrontendSessionData' from the 'SSession' state to 'MonadFAction' state.  If there
+    -- is no state, do nothing.
+    cookieToSession :: IO (Maybe fsd) -> m ()
+    cookieToSession r = unNat ioNat r >>= mapM_ put
 
--- | Write 'FrontendSessionData' from the 'SSession' state to 'MonadFAction' state.  If there
--- is no state, do nothing.
-cookieToSession :: MonadState fsd m => IO :~> m -> IO (Maybe fsd) -> m ()
-cookieToSession ioNat r = unNat ioNat r >>= mapM_ put
-
--- | Read 'FrontendSessionData' from 'MonadFAction' and write back into 'SSession' state.
-cookieFromSession :: MonadState fsd m => IO :~> m -> (fsd -> IO ()) -> m ()
-cookieFromSession ioNat w = get >>= unNat ioNat . w
+    -- | Read 'FrontendSessionData' from 'MonadFAction' and write back into 'SSession' state.
+    cookieFromSession :: (fsd -> IO ()) -> m ()
+    cookieFromSession w = get >>= unNat ioNat . w
