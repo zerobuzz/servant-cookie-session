@@ -169,18 +169,23 @@ enterAction mfsd ioNat nat = Nat $ \fServer -> unNat nat $ do
             lock :: MVar () <- liftIO $ lkup () >>= maybe
               newEmptyMVar
               (\(_, lock) -> takeMVar lock >> pure lock)
-            cookieToSession (fmap fst <$> lkup ())
-            maybeSessionToken <- use getSessionToken
 
-            -- refresh the CSRF token if there is a session token
-            when (isJust maybeSessionToken) refreshCsrfToken
-
-            result <- fServer `finally` (do
-                clearCsrfToken  -- could be replaced by 'refreshCsrfToken'
-                cookieFromSession (ins () . (, lock)))
-            liftIO $ putMVar lock ()
-            pure result
+            (prepare (fmap fst <$> lkup ()) >> fServer)
+              `finally` cleanup (ins ()) lock
   where
+    prepare :: IO (Maybe fsd) -> m ()
+    prepare lkup = do
+      cookieToSession lkup
+      maybeSessionToken <- use getSessionToken
+      -- refresh the CSRF token if there is a session token
+      when (isJust maybeSessionToken) refreshCsrfToken
+
+    cleanup :: (Lockable fsd -> IO ()) -> MVar () -> m ()
+    cleanup ins lock = do
+      clearCsrfToken  -- could be replaced by 'refreshCsrfToken'
+      cookieFromSession (ins . (, lock))
+      liftIO $ putMVar lock ()
+
     -- | Write 'FrontendSessionData' from the 'SSession' state to 'MonadFAction' state.  If there
     -- is no state, do nothing.
     cookieToSession :: IO (Maybe fsd) -> m ()
