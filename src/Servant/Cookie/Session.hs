@@ -28,7 +28,7 @@ module Servant.Cookie.Session
     )
 where
 
-import Control.Concurrent.MVar (MVar, takeMVar, putMVar)
+import Control.Concurrent.MVar (MVar, newEmptyMVar, takeMVar, putMVar)
 import Control.Lens (use)
 import Control.Monad.Except.Missing (finally)
 import Control.Monad.IO.Class (MonadIO(..))
@@ -166,8 +166,9 @@ enterAction mfsd ioNat nat = Nat $ \fServer -> unNat nat $ do
             -- the client.
             throwError500 "Could not read cookie."
         Just (lkup, ins) -> do
-            Just (_, lock :: MVar ()) <- liftIO $ lkup ()
-            liftIO $ takeMVar lock
+            lock :: MVar () <- liftIO $ lkup () >>= maybe
+              newEmptyMVar
+              (\(_, lock) -> takeMVar lock >> pure lock)
             cookieToSession (fmap fst <$> lkup ())
             maybeSessionToken <- use getSessionToken
 
