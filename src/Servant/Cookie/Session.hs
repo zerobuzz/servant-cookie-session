@@ -55,15 +55,15 @@ import Servant.Cookie.Session.Types
 -- * servant integration
 
 -- | @SessionStorage m k v@ represents a session storage with keys of type @k@,
--- values of type @v@, and operating under the monad @m@.
+-- values of type @fsd@, and operating under the monad @m@.
 -- The underlying implementation uses the 'wai-session' package, and any
 -- backend compatible with that package should work here too.
-data SessionStorage (m :: * -> *) (k :: *) (v :: *)
+data SessionStorage (m :: * -> *) (k :: *) (fsd :: *)
 
 -- | 'HasServer' instance for 'SessionStorage'.
-instance (HasServer sublayout context) => HasServer (SessionStorage n k v :> sublayout) context where
-  type ServerT (SessionStorage n k v :> sublayout) m
-    = (V.Key (Session n k v) -> Maybe (Session n k v)) -> ServerT sublayout m
+instance (HasServer sublayout context) => HasServer (SessionStorage n k fsd :> sublayout) context where
+  type ServerT (SessionStorage n k fsd :> sublayout) m
+    = (V.Key (Session n k fsd) -> Maybe (Session n k fsd)) -> ServerT sublayout m
   route Proxy context subserver =
     route (Proxy :: Proxy sublayout) context (passToServer subserver go)
     where
@@ -96,11 +96,11 @@ sessionMiddleware Proxy setCookie = do
 
 -- * frontend action monad
 
-serveAction :: forall api m fsd e v.
+serveAction :: forall m e fsd csrf api.
         ( HasServer api '[]
         , Enter (ServerT api m) (m :~> ExceptT ServantErr IO) (Server api)
         , MonadRandom m, MonadError500 e m, MonadSessionCsrfToken fsd m
-        , MonadViewCsrfSecret v m, MonadSessionToken fsd m
+        , MonadViewCsrfSecret csrf m, MonadSessionToken fsd m
         )
      => Proxy api
      -> Proxy fsd
@@ -131,9 +131,9 @@ serveAction _ sProxy setCookie ioNat nat fServer mFallback =
         nt = enterAction (smap key) ioNat nat
 
 enterAction
-    :: forall m e fsd v.
+    :: forall m e fsd csrf.
        ( MonadRandom m, MonadError500 e m, MonadSessionCsrfToken fsd m
-       , MonadViewCsrfSecret v m, MonadSessionToken fsd m)
+       , MonadViewCsrfSecret csrf m, MonadSessionToken fsd m)
     => Maybe (Session IO () fsd)
     -> IO :~> m
     -> m :~> ExceptT ServantErr IO
